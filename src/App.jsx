@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './App.css';
+import { jsPDF } from 'jspdf';
 
 // --- الثوابت الرئيسية ---
 const POINTS_FACTOR = 1; 
@@ -467,48 +468,93 @@ const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
         }
 
         setIsExporting(true);
-        setExportMessage('جاري تحضير الملف...');
+        setExportMessage('جاري تحضير ملف PDF...');
 
         try {
-            let content = `تقرير نتائج التداول - EXTRA TRADE\n`;
-            content += `تاريخ التقرير: ${new Date().toLocaleDateString('ar-SA')}\n`;
-            content += `=====================================\n\n`;
+            const doc = new jsPDF();
             
-            content += `ملخص الأداء الإجمالي:\n`;
-            content += `- إجمالي الصفقات المغلقة: ${closedTradesDetails.length}\n`;
-            content += `- معدل الربح: ${winRate.toFixed(1)}% (${totalWins} رابحة / ${totalLosses} خاسرة)\n`;
-            content += `- صافي النقاط: ${formatPoints(totalPoints)}\n`;
-            content += `- صافي الدولارات: ${formatDollar(totalDollarProfit)}\n\n`;
+            // إعداد الخط والاتجاه
+            doc.setFont('helvetica');
+            doc.setFontSize(16);
             
-            content += `تفاصيل الصفقات:\n`;
-            content += `=====================================\n`;
+            // العنوان الرئيسي
+            doc.text('EXTRA TRADE - Trading Report', 105, 20, { align: 'center' });
+            doc.setFontSize(12);
+            doc.text(`Report Date: ${new Date().toLocaleDateString('en-US')}`, 105, 30, { align: 'center' });
             
+            // خط فاصل
+            doc.line(20, 35, 190, 35);
+            
+            let yPosition = 50;
+            
+            // ملخص الأداء
+            doc.setFontSize(14);
+            doc.text('Performance Summary:', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(10);
+            doc.text(`Total Closed Trades: ${closedTradesDetails.length}`, 20, yPosition);
+            yPosition += 7;
+            doc.text(`Win Rate: ${winRate.toFixed(1)}% (${totalWins} wins / ${totalLosses} losses)`, 20, yPosition);
+            yPosition += 7;
+            doc.text(`Net Points: ${formatPoints(totalPoints)}`, 20, yPosition);
+            yPosition += 7;
+            doc.text(`Net Profit: ${formatDollar(totalDollarProfit)}`, 20, yPosition);
+            yPosition += 15;
+            
+            // تفاصيل الصفقات
+            doc.setFontSize(14);
+            doc.text('Trade Details:', 20, yPosition);
+            yPosition += 10;
+            
+            // رؤوس الجدول
+            doc.setFontSize(9);
+            doc.text('Symbol', 20, yPosition);
+            doc.text('Type', 50, yPosition);
+            doc.text('Exit', 75, yPosition);
+            doc.text('Price', 100, yPosition);
+            doc.text('Points', 130, yPosition);
+            doc.text('Profit ($)', 160, yPosition);
+            yPosition += 5;
+            
+            // خط تحت الرؤوس
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 5;
+            
+            // بيانات الصفقات
             closedTradesDetails.forEach((trade, index) => {
-                content += `${index + 1}. ${trade.symbol} (${trade.type === 'BUY' ? 'شراء' : 'بيع'})\n`;
-                content += `   - الإغلاق: ${trade.outcome}\n`;
-                content += `   - سعر الخروج: ${trade.exitPrice}\n`;
-                content += `   - النقاط: ${formatPoints(trade.points)}\n`;
-                content += `   - الربح: ${formatDollar(trade.dollarProfit)}\n\n`;
+                if (yPosition > 270) { // إضافة صفحة جديدة إذا امتلأت الصفحة
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.text(trade.symbol, 20, yPosition);
+                doc.text(trade.type === 'BUY' ? 'Buy' : 'Sell', 50, yPosition);
+                doc.text(trade.outcome, 75, yPosition);
+                doc.text(trade.exitPrice.toString(), 100, yPosition);
+                doc.text(formatPoints(trade.points), 130, yPosition);
+                doc.text(formatDollar(trade.dollarProfit), 160, yPosition);
+                yPosition += 7;
             });
             
-            content += `=====================================\n`;
-            content += `الإجمالي: ${formatPoints(totalPoints)} نقطة | ${formatDollar(totalDollarProfit)}\n`;
+            // الإجمالي
+            yPosition += 10;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 7;
+            doc.setFontSize(11);
+            doc.text('TOTAL:', 20, yPosition);
+            doc.text(`${formatPoints(totalPoints)} points`, 130, yPosition);
+            doc.text(formatDollar(totalDollarProfit), 160, yPosition);
+            
+            // حفظ الملف
+            const fileName = `Trading_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+            doc.save(fileName);
 
-            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `تقرير_التداول_${new Date().toISOString().split('T')[0]}.txt`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-
-            setExportMessage('✅ تم تصدير التقرير بنجاح!');
+            setExportMessage('✅ تم تصدير تقرير PDF بنجاح!');
             setIsExporting(false);
         } catch (error) {
-            console.error('Export error:', error);
-            setExportMessage('❌ فشل في تصدير التقرير.');
+            console.error('PDF Export error:', error);
+            setExportMessage('❌ فشل في تصدير تقرير PDF.');
             setIsExporting(false);
         } finally {
             setTimeout(() => setExportMessage(''), 5000);
@@ -525,7 +571,7 @@ const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
                     className="flex items-center px-6 py-2 text-white bg-pink-600 rounded-lg hover:bg-pink-700 transition duration-300 disabled:opacity-50 shadow-md"
                 >
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    {isExporting ? 'جاري التحضير...' : 'تصدير النتائج كملف نصي'}
+                    {isExporting ? 'جاري التحضير...' : 'تصدير النتائج كملف PDF'}
                 </button>
             </div>
 
