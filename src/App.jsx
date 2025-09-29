@@ -382,10 +382,10 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
                             
                             <button
                                 onClick={() => handleConfirmDelete(trade)}
-                                className="p-1 text-gray-400 hover:text-red-500 transition"
+                                className="py-1 px-3 text-sm bg-gray-400 text-white rounded-md hover:bg-gray-500 transition flex items-center justify-center shadow-md"
                                 title="حذف الصفقة"
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
                         </div>
                     </div>
@@ -403,9 +403,10 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
 };
 
 /**
- * مكون التقارير والإحصائيات
+ * تقارير وإحصائيات الصفقات المغلقة
  */
-const ReportsSection = ({ trades, onDeleteTrade }) => {
+const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
+    const [message, setMessage] = useState('');
     const [isExporting, setIsExporting] = useState(false);
     const [exportMessage, setExportMessage] = useState('');
     const [tradeToDelete, setTradeToDelete] = useState(null);
@@ -418,35 +419,37 @@ const ReportsSection = ({ trades, onDeleteTrade }) => {
         if (!tradeToDelete) return;
         
         onDeleteTrade(tradeToDelete.id);
+        setMessage(`✅ تم حذف الصفقة #${tradeToDelete.id.substring(0, 4)} لـ ${tradeToDelete.symbol} بنجاح.`);
         setTradeToDelete(null);
+        setTimeout(() => setMessage(''), 5000);
     };
 
     const closedTradesDetails = useMemo(() => {
-        return trades
-            .filter(trade => trade.status === 'CLOSED')
-            .map(trade => {
-                let exitPrice;
-                if (trade.outcome === 'SL') {
-                    exitPrice = trade.sl;
-                } else {
-                    const tpData = trade.tps.find(tp => tp.name === trade.outcome);
-                    exitPrice = tpData ? tpData.price : 'غير محدد';
-                }
-                return { ...trade, exitPrice };
-            })
-            .sort((a, b) => b.closeDate - a.closeDate);
-    }, [trades]);
+        return closedTrades.map(trade => {
+            let exitPrice;
+            if (trade.outcome === 'SL') {
+                exitPrice = trade.sl;
+            } else {
+                const tpData = trade.tps.find(t => t.name === trade.outcome);
+                exitPrice = tpData ? tpData.price : 'غير محدد';
+            }
+            
+            return {
+                ...trade,
+                exitPrice: exitPrice
+            };
+        });
+    }, [closedTrades]);
 
     const { totalPoints, totalDollarProfit, totalWins, totalLosses, winRate } = useMemo(() => {
-        const closedTrades = trades.filter(trade => trade.status === 'CLOSED');
-        const totalPoints = closedTrades.reduce((sum, trade) => sum + trade.points, 0);
-        const totalDollarProfit = closedTrades.reduce((sum, trade) => sum + trade.dollarProfit, 0);
-        const totalWins = closedTrades.filter(trade => trade.points > 0).length;
-        const totalLosses = closedTrades.filter(trade => trade.points <= 0).length;
-        const winRate = closedTrades.length > 0 ? (totalWins / closedTrades.length) * 100 : 0;
+        const totalPoints = closedTradesDetails.reduce((sum, trade) => sum + trade.points, 0);
+        const totalDollarProfit = closedTradesDetails.reduce((sum, trade) => sum + trade.dollarProfit, 0);
+        const totalWins = closedTradesDetails.filter(trade => trade.points > 0).length;
+        const totalLosses = closedTradesDetails.filter(trade => trade.points <= 0).length;
+        const winRate = closedTradesDetails.length > 0 ? (totalWins / closedTradesDetails.length) * 100 : 0;
         
         return { totalPoints, totalDollarProfit, totalWins, totalLosses, winRate };
-    }, [trades]);
+    }, [closedTradesDetails]);
 
     const formatPoints = (points) => {
         return points > 0 ? `+${points.toFixed(2)}` : points.toFixed(2);
@@ -456,48 +459,58 @@ const ReportsSection = ({ trades, onDeleteTrade }) => {
         return amount > 0 ? `+$${amount.toFixed(2)}` : `$${amount.toFixed(2)}`;
     };
 
-    // دالة تصدير PDF مبسطة (بدون مكتبات خارجية)
-    const generatePDF = async () => {
+    const generatePDF = () => {
+        if (closedTradesDetails.length === 0) {
+            setExportMessage('❌ لا توجد صفقات مغلقة للتصدير.');
+            setTimeout(() => setExportMessage(''), 5000);
+            return;
+        }
+
         setIsExporting(true);
-        setExportMessage('جاري إنشاء التقرير...');
-        
+        setExportMessage('جاري تحضير الملف...');
+
         try {
-            // محاكاة عملية التصدير
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            let content = `تقرير نتائج التداول - EXTRA TRADE\n`;
+            content += `تاريخ التقرير: ${new Date().toLocaleDateString('ar-SA')}\n`;
+            content += `=====================================\n\n`;
             
-            // إنشاء محتوى نصي للتقرير
-            const reportContent = `
-EXTRA TRADE - تقرير الأداء التجاري
-=====================================
-
-ملخص الأداء الإجمالي:
-- إجمالي الصفقات المغلقة: ${closedTradesDetails.length}
-- صافي النقاط: ${formatPoints(totalPoints)}
-- معدل الربح: ${winRate.toFixed(1)}% (${totalWins} رابحة / ${totalLosses} خاسرة)
-- صافي الدولارات: ${formatDollar(totalDollarProfit)}
-
-سجل الصفقات التفصيلي:
-${closedTradesDetails.map(trade => 
-    `- ${trade.symbol} (${trade.type === 'BUY' ? 'شراء' : 'بيع'}) - ${trade.outcome} - ${formatPoints(trade.points)} نقطة - ${formatDollar(trade.dollarProfit)}`
-).join('\n')}
-            `;
+            content += `ملخص الأداء الإجمالي:\n`;
+            content += `- إجمالي الصفقات المغلقة: ${closedTradesDetails.length}\n`;
+            content += `- معدل الربح: ${winRate.toFixed(1)}% (${totalWins} رابحة / ${totalLosses} خاسرة)\n`;
+            content += `- صافي النقاط: ${formatPoints(totalPoints)}\n`;
+            content += `- صافي الدولارات: ${formatDollar(totalDollarProfit)}\n\n`;
             
-            // إنشاء ملف نصي للتحميل
-            const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
+            content += `تفاصيل الصفقات:\n`;
+            content += `=====================================\n`;
+            
+            closedTradesDetails.forEach((trade, index) => {
+                content += `${index + 1}. ${trade.symbol} (${trade.type === 'BUY' ? 'شراء' : 'بيع'})\n`;
+                content += `   - الإغلاق: ${trade.outcome}\n`;
+                content += `   - سعر الخروج: ${trade.exitPrice}\n`;
+                content += `   - النقاط: ${formatPoints(trade.points)}\n`;
+                content += `   - الربح: ${formatDollar(trade.dollarProfit)}\n\n`;
+            });
+            
+            content += `=====================================\n`;
+            content += `الإجمالي: ${formatPoints(totalPoints)} نقطة | ${formatDollar(totalDollarProfit)}\n`;
+
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `Trading_Report_${new Date().toISOString().slice(0, 10)}.txt`;
+            link.download = `تقرير_التداول_${new Date().toISOString().split('T')[0]}.txt`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            
-            setExportMessage('✅ تم تصدير التقرير بنجاح.');
-        } catch (error) {
-            setExportMessage(`❌ فشل التصدير: ${error.message}`);
-        } finally {
+
+            setExportMessage('✅ تم تصدير التقرير بنجاح!');
             setIsExporting(false);
+        } catch (error) {
+            console.error('Export error:', error);
+            setExportMessage('❌ فشل في تصدير التقرير.');
+            setIsExporting(false);
+        } finally {
             setTimeout(() => setExportMessage(''), 5000);
         }
     };
@@ -764,7 +777,7 @@ function App() {
                         
                         {activeTab === 'reports' && (
                             <ReportsSection 
-                                trades={trades}
+                                closedTrades={closedTrades}
                                 onDeleteTrade={deleteTrade}
                             />
                         )}
@@ -773,11 +786,14 @@ function App() {
             </div>
 
             {/* Footer */}
-            <footer className="bg-gray-800 text-white py-8 mt-16">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <p className="text-sm">
-                        © 2024 EXTRA TRADE. جميع الحقوق محفوظة.
-                    </p>
+            <footer className="bg-white border-t border-gray-200 mt-16">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="text-center">
+                        <p className="text-lg font-bold text-gray-800">EXTRA TRADE</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                            نظام إدارة الصفقات التجارية المتقدم
+                        </p>
+                    </div>
                     <p className="text-xs text-gray-400 mt-2">
                         نظام إدارة الصفقات التجارية - البيانات محفوظة محلياً فقط
                     </p>
