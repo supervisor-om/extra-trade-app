@@ -484,9 +484,9 @@ const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
             doc.setFontSize(12);
             doc.text(`Date: ${new Date().toISOString().split('T')[0]}`, 170, 40);
             
-            // العنوان الفرعي بالعربية
+            // العنوان الفرعي
             doc.setFontSize(16);
-            doc.text('نتائج الصفقات الأسبوعية', 105, 60, { align: 'center' });
+            doc.text('Weekly Trading Results', 105, 60, { align: 'center' });
             
             let yPosition = 80;
             
@@ -494,13 +494,13 @@ const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
             const tableData = [];
             
             // إضافة رؤوس الجدول
-            const headers = ['الأداة', 'النوع', 'الإغلاق', 'سعر الخروج', 'النقاط', 'الربح بالدولار ($)'];
+            const headers = ['Symbol', 'Type', 'Exit', 'Exit Price', 'Points', 'Profit ($)'];
             
             // إضافة بيانات الصفقات
             closedTradesDetails.forEach((trade) => {
                 tableData.push([
                     trade.symbol,
-                    trade.type === 'BUY' ? 'شراء' : 'بيع',
+                    trade.type === 'BUY' ? 'Buy' : 'Sell',
                     trade.outcome,
                     trade.exitPrice.toString(),
                     formatPoints(trade.points),
@@ -575,7 +575,7 @@ const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
             doc.rect(startX, yPosition, tableWidth, cellHeight, 'F');
             
             doc.setFontSize(12);
-            doc.text('الإجمالي', startX + 5, yPosition + 7);
+            doc.text('TOTAL', startX + 5, yPosition + 7);
             
             // تلوين الإجمالي
             if (totalPoints > 0) {
@@ -584,7 +584,7 @@ const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
                 doc.setTextColor(255, 0, 0);
             }
             
-            doc.text(`${formatPoints(totalPoints)} نقطة`, startX + 120, yPosition + 7);
+            doc.text(`${formatPoints(totalPoints)} pts`, startX + 120, yPosition + 7);
             doc.text(formatDollar(totalDollarProfit), startX + 145, yPosition + 7);
             
             doc.setTextColor(0, 0, 0); // إعادة تعيين اللون
