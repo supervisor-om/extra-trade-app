@@ -473,78 +473,137 @@ const ReportsSection = ({ closedTrades, onDeleteTrade }) => {
         try {
             const doc = new jsPDF();
             
-            // إعداد الخط والاتجاه
+            // إعداد الخط
             doc.setFont('helvetica');
-            doc.setFontSize(16);
             
             // العنوان الرئيسي
-            doc.text('EXTRA TRADE - Trading Report', 105, 20, { align: 'center' });
+            doc.setFontSize(18);
+            doc.text('Trading Performance Report', 105, 25, { align: 'center' });
+            
+            // التاريخ
             doc.setFontSize(12);
-            doc.text(`Report Date: ${new Date().toLocaleDateString('en-US')}`, 105, 30, { align: 'center' });
+            doc.text(`Date: ${new Date().toISOString().split('T')[0]}`, 170, 40);
             
-            // خط فاصل
-            doc.line(20, 35, 190, 35);
+            // العنوان الفرعي بالعربية
+            doc.setFontSize(16);
+            doc.text('نتائج الصفقات الأسبوعية', 105, 60, { align: 'center' });
             
-            let yPosition = 50;
+            let yPosition = 80;
             
-            // ملخص الأداء
-            doc.setFontSize(14);
-            doc.text('Performance Summary:', 20, yPosition);
-            yPosition += 10;
+            // إنشاء جدول للصفقات
+            const tableData = [];
+            
+            // إضافة رؤوس الجدول
+            const headers = ['الأداة', 'النوع', 'الإغلاق', 'سعر الخروج', 'النقاط', 'الربح بالدولار ($)'];
+            
+            // إضافة بيانات الصفقات
+            closedTradesDetails.forEach((trade) => {
+                tableData.push([
+                    trade.symbol,
+                    trade.type === 'BUY' ? 'شراء' : 'بيع',
+                    trade.outcome,
+                    trade.exitPrice.toString(),
+                    formatPoints(trade.points),
+                    formatDollar(trade.dollarProfit)
+                ]);
+            });
+            
+            // رسم الجدول يدوياً
+            const startX = 15;
+            const startY = yPosition;
+            const cellWidth = 30;
+            const cellHeight = 10;
+            const tableWidth = 180;
+            
+            // رسم رؤوس الجدول
+            doc.setFillColor(240, 240, 240);
+            doc.rect(startX, startY, tableWidth, cellHeight, 'F');
             
             doc.setFontSize(10);
-            doc.text(`Total Closed Trades: ${closedTradesDetails.length}`, 20, yPosition);
-            yPosition += 7;
-            doc.text(`Win Rate: ${winRate.toFixed(1)}% (${totalWins} wins / ${totalLosses} losses)`, 20, yPosition);
-            yPosition += 7;
-            doc.text(`Net Points: ${formatPoints(totalPoints)}`, 20, yPosition);
-            yPosition += 7;
-            doc.text(`Net Profit: ${formatDollar(totalDollarProfit)}`, 20, yPosition);
-            yPosition += 15;
+            doc.text(headers[0], startX + 5, startY + 7); // الأداة
+            doc.text(headers[1], startX + 35, startY + 7); // النوع
+            doc.text(headers[2], startX + 60, startY + 7); // الإغلاق
+            doc.text(headers[3], startX + 85, startY + 7); // سعر الخروج
+            doc.text(headers[4], startX + 120, startY + 7); // النقاط
+            doc.text(headers[5], startX + 145, startY + 7); // الربح
             
-            // تفاصيل الصفقات
-            doc.setFontSize(14);
-            doc.text('Trade Details:', 20, yPosition);
-            yPosition += 10;
+            yPosition += cellHeight;
             
-            // رؤوس الجدول
-            doc.setFontSize(9);
-            doc.text('Symbol', 20, yPosition);
-            doc.text('Type', 50, yPosition);
-            doc.text('Exit', 75, yPosition);
-            doc.text('Price', 100, yPosition);
-            doc.text('Points', 130, yPosition);
-            doc.text('Profit ($)', 160, yPosition);
-            yPosition += 5;
-            
-            // خط تحت الرؤوس
-            doc.line(20, yPosition, 190, yPosition);
-            yPosition += 5;
-            
-            // بيانات الصفقات
-            closedTradesDetails.forEach((trade, index) => {
-                if (yPosition > 270) { // إضافة صفحة جديدة إذا امتلأت الصفحة
+            // رسم بيانات الجدول
+            tableData.forEach((row, index) => {
+                if (yPosition > 270) {
                     doc.addPage();
                     yPosition = 20;
                 }
                 
-                doc.text(trade.symbol, 20, yPosition);
-                doc.text(trade.type === 'BUY' ? 'Buy' : 'Sell', 50, yPosition);
-                doc.text(trade.outcome, 75, yPosition);
-                doc.text(trade.exitPrice.toString(), 100, yPosition);
-                doc.text(formatPoints(trade.points), 130, yPosition);
-                doc.text(formatDollar(trade.dollarProfit), 160, yPosition);
-                yPosition += 7;
+                // تلوين الصفوف بالتناوب
+                if (index % 2 === 0) {
+                    doc.setFillColor(250, 250, 250);
+                    doc.rect(startX, yPosition, tableWidth, cellHeight, 'F');
+                }
+                
+                doc.setFontSize(9);
+                doc.text(row[0], startX + 5, yPosition + 7); // الأداة
+                doc.text(row[1], startX + 35, yPosition + 7); // النوع
+                doc.text(row[2], startX + 60, yPosition + 7); // الإغلاق
+                doc.text(row[3], startX + 85, yPosition + 7); // سعر الخروج
+                
+                // تلوين النقاط والربح حسب القيمة
+                const points = parseFloat(row[4].replace('+', ''));
+                if (points > 0) {
+                    doc.setTextColor(0, 128, 0); // أخضر للربح
+                } else if (points < 0) {
+                    doc.setTextColor(255, 0, 0); // أحمر للخسارة
+                } else {
+                    doc.setTextColor(0, 0, 0); // أسود للصفر
+                }
+                
+                doc.text(row[4], startX + 120, yPosition + 7); // النقاط
+                doc.text(row[5], startX + 145, yPosition + 7); // الربح
+                
+                doc.setTextColor(0, 0, 0); // إعادة تعيين اللون للأسود
+                yPosition += cellHeight;
             });
             
-            // الإجمالي
+            // خط فاصل قبل الإجمالي
+            yPosition += 5;
+            doc.line(startX, yPosition, startX + tableWidth, yPosition);
             yPosition += 10;
-            doc.line(20, yPosition, 190, yPosition);
-            yPosition += 7;
-            doc.setFontSize(11);
-            doc.text('TOTAL:', 20, yPosition);
-            doc.text(`${formatPoints(totalPoints)} points`, 130, yPosition);
-            doc.text(formatDollar(totalDollarProfit), 160, yPosition);
+            
+            // الإجمالي
+            doc.setFillColor(200, 200, 255);
+            doc.rect(startX, yPosition, tableWidth, cellHeight, 'F');
+            
+            doc.setFontSize(12);
+            doc.text('الإجمالي', startX + 5, yPosition + 7);
+            
+            // تلوين الإجمالي
+            if (totalPoints > 0) {
+                doc.setTextColor(0, 128, 0);
+            } else if (totalPoints < 0) {
+                doc.setTextColor(255, 0, 0);
+            }
+            
+            doc.text(`${formatPoints(totalPoints)} نقطة`, startX + 120, yPosition + 7);
+            doc.text(formatDollar(totalDollarProfit), startX + 145, yPosition + 7);
+            
+            doc.setTextColor(0, 0, 0); // إعادة تعيين اللون
+            
+            // رسم حدود الجدول
+            doc.setDrawColor(0, 0, 0);
+            doc.rect(startX, startY, tableWidth, (tableData.length + 2) * cellHeight);
+            
+            // خطوط عمودية
+            doc.line(startX + 30, startY, startX + 30, startY + (tableData.length + 2) * cellHeight);
+            doc.line(startX + 55, startY, startX + 55, startY + (tableData.length + 2) * cellHeight);
+            doc.line(startX + 80, startY, startX + 80, startY + (tableData.length + 2) * cellHeight);
+            doc.line(startX + 115, startY, startX + 115, startY + (tableData.length + 2) * cellHeight);
+            doc.line(startX + 140, startY, startX + 140, startY + (tableData.length + 2) * cellHeight);
+            
+            // خطوط أفقية
+            for (let i = 1; i <= tableData.length + 1; i++) {
+                doc.line(startX, startY + i * cellHeight, startX + tableWidth, startY + i * cellHeight);
+            }
             
             // حفظ الملف
             const fileName = `Trading_Report_${new Date().toISOString().split('T')[0]}.pdf`;
