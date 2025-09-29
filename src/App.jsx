@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import './App.css';
+// تمت إزالة جميع استدعاءات Firebase
 
 // --- الثوابت الرئيسية ---
 const POINTS_FACTOR = 1; 
 const DOLLAR_PER_POINT = 0.1;
 
 // --- بيانات اللوجو (تم تشفيرها إلى Base64) ---
-// يرجى استبدال هذه البيانات بالـ Base64 الخاص بشعارك المفضل
 const LOGO_BASE64_FOR_HEADER = "/9j/4AAQSkZJRgABAQEAYABgAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAEAAAAAAAD/2wBDAAIBAQIBAQICAgICAgICAwUDAwMDAwYEBAMFBwYHBwcGBwcICQsJCAgKCAcHCg0KCgsMDAwMBwkODw0MDgsMDAz/2wBDAQICAgMDAwYDAwYMCAcIDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAz/wAARCAEAAQEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBgcIEyExURQiQhYjVHGQCcHRM,s/4y/9K/8AwA//9k="; 
-// Base64 لشعار أكثر وضوحاً (للركن)
+
 const HEADER_LOGO_BASE64 = LOGO_BASE64_FOR_HEADER;
-const WATERMARK_TEXT = "EXTRA TRADE"; // النص الذي سيظهر كعلامة مائية
+const WATERMARK_TEXT = "EXTRA TRADE"; 
 
 // --- دوال مساعدة لحساب الوقت والأسبوع ---
 const getWeekId = (date) => {
@@ -146,6 +145,7 @@ const ConfirmModal = ({ isOpen, message, onConfirm, onCancel }) => {
     );
 };
 
+
 const NewTradeForm = ({ onAddTrade }) => {
     const exampleText = `Sell US30\nEntry: 46350\nSL: 46425 (-75)\nTP1: 46300 (+50)\nTP2: 46250 (+100)\nTP3: 46200 (+150)`;
     const [tradeText, setTradeText] = useState(exampleText); 
@@ -168,6 +168,7 @@ const NewTradeForm = ({ onAddTrade }) => {
         setTimeout(() => setMessage(''), 3000);
     };
 
+
     const handleSubmit = useCallback((e) => {
         e.preventDefault();
         if (!tradeText.trim()) return setMessage('الرجاء لصق تفاصيل الصفقة أولاً.');
@@ -182,7 +183,7 @@ const NewTradeForm = ({ onAddTrade }) => {
             return setMessage(`❌ خطأ في التحليل: ${error}`);
         }
 
-        // إنشاء صفقة جديدة
+        // إنشاء صفقة جديدة بدون Firebase
         const newTrade = {
             id: Math.random().toString(36).substring(2, 9), // معرف مؤقت
             type: trade.type,
@@ -228,7 +229,7 @@ const NewTradeForm = ({ onAddTrade }) => {
                     className="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-left font-mono text-sm"
                     required
                     style={{ direction: 'ltr', textAlign: 'left' }}
-                    ref={textAreaRef}
+                    ref={textAreaRef} // ربط ref بمربع النص
                 />
             </div>
 
@@ -253,11 +254,13 @@ const NewTradeForm = ({ onAddTrade }) => {
                 </button>
             </div>
 
+
             {message && (
                 <div className={`p-3 mb-4 rounded-lg text-center font-semibold ${message.includes('نجاح') ? 'bg-green-100 text-green-700' : message.includes('خطأ') ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                     {message}
                 </div>
             )}
+            
 
             <button
                 type="submit"
@@ -269,6 +272,7 @@ const NewTradeForm = ({ onAddTrade }) => {
         </form>
     );
 };
+
 
 /**
  * قائمة الصفقات المفتوحة لإغلاقها
@@ -289,6 +293,7 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
         setTradeToDelete(null);
         setTimeout(() => setMessage(''), 5000);
     };
+
 
     const handleCloseTrade = (trade, outcome) => {
         setMessage('');
@@ -334,6 +339,11 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
         );
     }
 
+    // حساب متغير الرسالة بشكل آمن قبل JSX باستخدام && بدلاً من ?.
+    const deleteTradeId = (tradeToDelete && tradeToDelete.id) ? tradeToDelete.id.substring(0, 4) : '';
+    const deleteTradeSymbol = (tradeToDelete && tradeToDelete.symbol) || '';
+    const confirmMessage = 'هل أنت متأكد من حذف الصفقة #' + deleteTradeId + ' لـ ' + deleteTradeSymbol + '؟ لا يمكن التراجع عن هذا الإجراء.';
+
     return (
         <div className="p-6 bg-white rounded-xl shadow-lg">
             <h3 className="text-xl font-bold mb-4 text-indigo-700">الصفقات المفتوحة ({openTrades.length})</h3>
@@ -349,6 +359,7 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
                             <div className="flex items-center space-x-2 space-x-reverse">
                                 <span className={`text-sm font-bold px-3 py-1 rounded-full text-white ${trade.type === 'BUY' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                                     {trade.type === 'BUY' ? 'شراء' : 'بيع'}
+                                
                                 </span>
                                 <span className="text-lg font-extrabold text-gray-800">{trade.symbol}</span>
                             </div>
@@ -362,6 +373,7 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
                              الأهداف المتاحة:
                         </p>
                         
+                        {/* Outcome Buttons and Delete Button */}
                         <div className="flex flex-wrap gap-2 justify-end items-center">
                             {trade.tps.map((tp) => (
                                 <button
@@ -369,21 +381,21 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
                                     onClick={() => handleCloseTrade(trade, tp.name)}
                                     className="py-1 px-3 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition flex items-center justify-center shadow-md"
                                 >
-                                    {tp.name} ({tp.points > 0 ? '+' : ''}{tp.points})
+                                    {tp.name} ({tp.points > 0 ? '+' : ''}{tp.points} نقطة)
                                 </button>
                             ))}
-                            
                             <button
                                 onClick={() => handleCloseTrade(trade, 'SL')}
                                 className="py-1 px-3 text-sm bg-red-500 text-white rounded-md hover:bg-red-600 transition flex items-center justify-center shadow-md"
                             >
-                                SL ({trade.slPoints})
+                                وقف الخسارة (SL)
                             </button>
-                            
+
+                            {/* زر الحذف */}
                             <button
                                 onClick={() => handleConfirmDelete(trade)}
-                                className="p-1 text-gray-400 hover:text-red-500 transition"
-                                title="حذف الصفقة"
+                                className="p-2 text-gray-400 hover:text-red-500 transition"
+                                title="حذف الصفقة (مدخلة بالخطأ)"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
@@ -391,10 +403,11 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
                     </div>
                 ))}
             </div>
-            
-            <ConfirmModal
+             
+            /* نافذة تأكيد الحذف */
+            <ConfirmModal 
                 isOpen={!!tradeToDelete}
-                message={`هل أنت متأكد من حذف الصفقة ${tradeToDelete?.symbol} (${tradeToDelete?.type})؟`}
+                message={confirmMessage}
                 onConfirm={handleDeleteTrade}
                 onCancel={() => setTradeToDelete(null)}
             />
@@ -402,13 +415,74 @@ const OpenTradesList = ({ openTrades, onUpdateTrade, onDeleteTrade }) => {
     );
 };
 
+// دالة مساعدة لتحميل سكربت خارجي بشكل ديناميكي (Promise based)
+const loadScript = (src) => {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+            // Script already exists, resolve immediately if libraries are loaded
+            if (typeof window.html2canvas !== 'undefined' || typeof window.jspdf !== 'undefined') {
+                resolve();
+                return;
+            }
+        }
+
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+};
+
 /**
- * مكون التقارير والإحصائيات
+ * تقرير الأداء الأسبوعي
  */
-const ReportsSection = ({ trades, onDeleteTrade }) => {
-    const [isExporting, setIsExporting] = useState(false);
+const WeeklyReport = ({ trades, onDeleteTrade }) => {
+    // حالة للتحكم في رسالة التصدير
     const [exportMessage, setExportMessage] = useState('');
-    const [tradeToDelete, setTradeToDelete] = useState(null);
+    const [isExporting, setIsExporting] = useState(false);
+    const [tradeToDelete, setTradeToDelete] = useState(null); // لإدارة حذف الصفقات المغلقة
+    
+    // حساب الإجماليات الإضافية هنا مباشرة
+    const { totalPoints, totalDollarProfit, closedTradesCount, totalWins, totalLosses, winRate } = useMemo(() => {
+        const closed = trades.filter(t => t.status === 'CLOSED');
+        const totalP = closed.reduce((sum, trade) => sum + (trade.points || 0), 0);
+        const totalDP = closed.reduce((sum, trade) => sum + (trade.dollarProfit || 0), 0);
+        const totalW = closed.filter(t => (t.points || 0) > 0).length;
+        const totalL = closed.filter(t => (t.points || 0) < 0).length;
+        const totalC = closed.length;
+        const winR = totalC > 0 ? (totalW / totalC) * 100 : 0;
+        
+        return { totalPoints: totalP, totalDollarProfit: totalDP, closedTradesCount: totalC, totalWins: totalW, totalLosses: totalL, winRate: winR };
+    }, [trades]);
+    
+    const closedTradesDetails = useMemo(() => {
+        return trades.filter(t => t.status === 'CLOSED').map(t => ({
+            id: t.id,
+            symbol: t.symbol || 'N/A',
+            type: t.type || 'N/A',
+            outcome: t.outcome || 'N/A',
+            points: t.points || 0,
+            dollarProfit: t.dollarProfit || 0,
+            closeDate: t.closeDate,
+            weekId: t.weekId,
+            exitPrice: t.outcome === 'SL' ? t.sl : t.tps?.find(tp => tp.name === t.outcome)?.price || 'N/A',
+        })).sort((a, b) => b.closeDate - a.closeDate); // الأحدث أولاً
+    }, [trades]);
+
+    const formatDollar = (amount) => {
+        const fixed = amount.toFixed(2);
+        if (amount > 0) return `+$${fixed}`;
+        if (amount < 0) return `-$${Math.abs(fixed).toFixed(2)}`;
+        return '$0.00';
+    };
+    
+    const formatPoints = (points) => {
+        const fixed = points.toFixed(2);
+        if (points > 0) return `+${fixed}`;
+        if (points < 0) return fixed;
+        return '0.00';
+    };
 
     const handleConfirmDelete = (trade) => {
         setTradeToDelete(trade);
@@ -418,111 +492,216 @@ const ReportsSection = ({ trades, onDeleteTrade }) => {
         if (!tradeToDelete) return;
         
         onDeleteTrade(tradeToDelete.id);
+        setExportMessage(`✅ تم حذف الصفقة #${tradeToDelete.id.substring(0, 4)} لـ ${tradeToDelete.symbol} بنجاح.`);
         setTradeToDelete(null);
+        setTimeout(() => setExportMessage(''), 5000);
     };
-
-    const closedTradesDetails = useMemo(() => {
-        return trades
-            .filter(trade => trade.status === 'CLOSED')
-            .map(trade => {
-                let exitPrice;
-                if (trade.outcome === 'SL') {
-                    exitPrice = trade.sl;
-                } else {
-                    const tpData = trade.tps.find(tp => tp.name === trade.outcome);
-                    exitPrice = tpData ? tpData.price : 'غير محدد';
-                }
-                return { ...trade, exitPrice };
-            })
-            .sort((a, b) => b.closeDate - a.closeDate);
-    }, [trades]);
-
-    const { totalPoints, totalDollarProfit, totalWins, totalLosses, winRate } = useMemo(() => {
-        const closedTrades = trades.filter(trade => trade.status === 'CLOSED');
-        const totalPoints = closedTrades.reduce((sum, trade) => sum + trade.points, 0);
-        const totalDollarProfit = closedTrades.reduce((sum, trade) => sum + trade.dollarProfit, 0);
-        const totalWins = closedTrades.filter(trade => trade.points > 0).length;
-        const totalLosses = closedTrades.filter(trade => trade.points <= 0).length;
-        const winRate = closedTrades.length > 0 ? (totalWins / closedTrades.length) * 100 : 0;
-        
-        return { totalPoints, totalDollarProfit, totalWins, totalLosses, winRate };
-    }, [trades]);
-
-    const formatPoints = (points) => {
-        return points > 0 ? `+${points.toFixed(2)}` : points.toFixed(2);
-    };
-
-    const formatDollar = (amount) => {
-        return amount > 0 ? `+$${amount.toFixed(2)}` : `$${amount.toFixed(2)}`;
-    };
-
-    // دالة تصدير PDF مبسطة (بدون مكتبات خارجية)
+    
+    // ==========================================================
+    // دالة تصدير التقرير كـ PDF
+    // ==========================================================
     const generatePDF = async () => {
         setIsExporting(true);
-        setExportMessage('جاري إنشاء التقرير...');
-        
+        setExportMessage('جاري تحميل أدوات التصدير والتحضير للتقرير...');
+
         try {
-            // محاكاة عملية التصدير
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // 1. تحميل المكتبات بشكل متسلسل
+            if (typeof window.html2canvas === 'undefined') {
+                await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+            }
+            if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+                await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+            }
             
-            // إنشاء محتوى نصي للتقرير
-            const reportContent = `
-EXTRA TRADE - تقرير الأداء التجاري
-=====================================
+            // 2. التحضير للتقرير
+            setExportMessage('جاري إنشاء التقرير... قد يستغرق الأمر بضع ثوانٍ.');
 
-ملخص الأداء الإجمالي:
-- إجمالي الصفقات المغلقة: ${closedTradesDetails.length}
-- صافي النقاط: ${formatPoints(totalPoints)}
-- معدل الربح: ${winRate.toFixed(1)}% (${totalWins} رابحة / ${totalLosses} خاسرة)
-- صافي الدولارات: ${formatDollar(totalDollarProfit)}
+            if (typeof window.html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+                throw new Error('فشل تحميل مكتبات التصدير.');
+            }
+            
+            // 3. البدء في إنشاء PDF
+            const dateStr = new Date().toISOString().slice(0, 10);
+            
+            const pdf = new window.jspdf.jsPDF({
+                orientation: 'landscape', 
+                unit: 'mm',
+                format: 'a4' 
+            });
 
-سجل الصفقات التفصيلي:
-${closedTradesDetails.map(trade => 
-    `- ${trade.symbol} (${trade.type === 'BUY' ? 'شراء' : 'بيع'}) - ${trade.outcome} - ${formatPoints(trade.points)} نقطة - ${formatDollar(trade.dollarProfit)}`
-).join('\n')}
-            `;
+            pdf.setFont('helvetica'); 
             
-            // إنشاء ملف نصي للتحميل
-            const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `Trading_Report_${new Date().toISOString().slice(0, 10)}.txt`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
             
-            setExportMessage('✅ تم تصدير التقرير بنجاح.');
+            // --- دالة مساعدة لإضافة العلامة المائية ---
+            const addWatermark = (pdf) => {
+                // إعدادات النص المائل
+                const wmText = WATERMARK_TEXT;
+                
+                // حفظ حالة الرسم الحالية
+                pdf.saveGraphicsState(); 
+
+                // تعيين شفافية 20% ولون رمادي باهت
+                pdf.setGState(new window.jspdf.GState({ opacity: 0.20 })); 
+                pdf.setTextColor(150, 150, 150); // رمادي فاتح
+                
+                // تعيين الخط وحجم كبير جداً
+                pdf.setFontSize(80);
+                
+                // يتم الدوران حول النقطة المركزية
+                const centerX = pdfWidth / 2;
+                const centerY = pdfHeight / 2;
+
+                pdf.text(wmText, centerX, centerY, {
+                    angle: -45, // الدوران بزاوية 45-
+                    align: 'center',
+                    baseline: 'middle'
+                });
+                
+                // استعادة حالة الرسم السابقة (مهم جداً!)
+                pdf.restoreGraphicsState();
+            };
+
+            // --- 4. إضافة عناصر الرأس (Headings) ---
+            
+            const logoWidth = 25; // حجم الشعار بالملليمتر
+            const logoHeight = 25; 
+            const logoMargin = 10; 
+            
+            const logoX = logoMargin;
+            const logoY = logoMargin;
+
+            // 4.1 إضافة اللوجو في الزاوية (نستخدم الشعار الأوضح هنا)
+            pdf.addImage(`data:image/jpeg;base64,${HEADER_LOGO_BASE64}`, 'JPEG', logoX, logoY, logoWidth, logoHeight);
+            
+            // 4.2 إضافة العلامة المائية للصفحة الأولى (في الخلفية)
+            addWatermark(pdf);
+
+            // 4.3 إضافة عنوان التقرير (إنجليزي لتجنب مشاكل الخطوط)
+            pdf.setFontSize(18);
+            
+            const titleMarginRight = 10;
+            const titleX = pdfWidth - titleMarginRight; 
+            const titleY = logoY + logoHeight / 2 + 5; 
+            
+            pdf.text('Trading Performance Report', titleX, titleY, { align: 'right' }); 
+            
+            pdf.setFontSize(10);
+            const dateText = `Date: ${dateStr}`;
+            pdf.text(dateText, titleX, logoY + logoHeight + 10, { align: 'right' });
+            
+            
+            // 6. استخدام html2canvas لأخذ لقطة للجداول
+            const summaryElement = document.getElementById('summary-table-container');
+            const tableElement = document.getElementById('detailed-table-container');
+
+            if (!summaryElement || !tableElement) {
+                 throw new Error('لم يتم العثور على عنصر التقرير.');
+            }
+
+            // إخفاء العناصر غير المطلوبة
+            const button = document.getElementById('export-button');
+            const messageDiv = document.getElementById('export-message-div');
+            const deleteHeaders = document.querySelectorAll('.delete-header, .delete-cell');
+            deleteHeaders.forEach(el => el.style.display = 'none');
+
+
+            if (button) button.style.display = 'none';
+            if (messageDiv) messageDiv.style.display = 'none';
+
+            let yPosition = logoY + logoHeight + 20;
+
+            // --- 6.1 التقاط صورة الملخص ---
+            const summaryCanvas = await window.html2canvas(summaryElement, {
+                scale: 2, 
+                logging: false,
+                useCORS: true, 
+                backgroundColor: '#ffffff' 
+            });
+            const summaryImgData = summaryCanvas.toDataURL('image/png');
+            const summaryProps = pdf.getImageProperties(summaryImgData);
+            
+            const summaryWidth = pdfWidth - 10;
+            const summaryHeight = summaryWidth / (summaryProps.width / summaryProps.height);
+            
+            // إضافة الملخص في الصفحة الأولى
+            pdf.addImage(summaryImgData, 'PNG', 5, yPosition, summaryWidth, summaryHeight);
+            yPosition += summaryHeight + 10; 
+            
+            // --- 6.2 التقاط صورة الجدول التفصيلي ---
+            const detailedCanvas = await window.html2canvas(tableElement, {
+                scale: 2, 
+                logging: false,
+                useCORS: true, 
+                backgroundColor: '#ffffff' 
+            });
+            const detailedImgData = detailedCanvas.toDataURL('image/png');
+            const detailedProps = pdf.getImageProperties(detailedImgData);
+            
+            // التعديل لفرض صفحة واحدة
+            const tableWidth = pdfWidth - 10;
+            const tableHeight = tableWidth / (detailedProps.width / detailedProps.height);
+            
+            // إذا كان جدول السجل لا يتسع بالكامل، سنقسمه على صفحة جديدة
+            if (yPosition + tableHeight > pdfHeight - 10) {
+                 pdf.addPage('a4', 'landscape');
+                 yPosition = 10; // ابدأ من أعلى الصفحة الجديدة
+                 addWatermark(pdf); // إضافة العلامة المائية للصفحة الجديدة
+            }
+
+            pdf.addImage(detailedImgData, 'PNG', 5, yPosition, tableWidth, tableHeight);
+
+            
+            pdf.save(`Trading_Report_${dateStr}.pdf`);
+            
+            setExportMessage('✅ تم تصدير ملف PDF بنجاح.');
+
         } catch (error) {
-            setExportMessage(`❌ فشل التصدير: ${error.message}`);
+            console.error('PDF export failed:', error);
+            setExportMessage(`❌ فشل التصدير: ${error.message}. يرجى المحاولة مرة أخرى.`);
         } finally {
+            // إعادة إظهار العناصر المخفية
+            const button = document.getElementById('export-button');
+            const messageDiv = document.getElementById('export-message-div');
+            const deleteHeaders = document.querySelectorAll('.delete-header, .delete-cell');
+            
+            deleteHeaders.forEach(el => el.style.display = '');
+
+            if (button) button.style.display = 'flex'; 
+            if (messageDiv) messageDiv.style.display = 'block';
+
             setIsExporting(false);
             setTimeout(() => setExportMessage(''), 5000);
         }
     };
+
 
     return (
         <div className="space-y-8">
             {/* زر التصدير */}
             <div className="flex justify-end p-2">
                 <button
+                    id="export-button"
                     onClick={generatePDF}
+                    // تعطيل الزر فقط إذا كان يتم التصدير، أو لا توجد صفقات مغلقة
                     disabled={isExporting || closedTradesDetails.length === 0}
                     className="flex items-center px-6 py-2 text-white bg-pink-600 rounded-lg hover:bg-pink-700 transition duration-300 disabled:opacity-50 shadow-md"
                 >
                     <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    {isExporting ? 'جاري التحضير...' : 'تصدير النتائج كملف نصي'}
+                    {isExporting ? 'جاري التحضير...' : 'تصدير النتائج كملف PDF'}
                 </button>
             </div>
 
             {exportMessage && (
-                <div className={`p-3 text-center font-semibold rounded-lg ${exportMessage.includes('نجاح') ? 'bg-green-100 text-green-700' : exportMessage.includes('فشل') ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                <div id="export-message-div" className={`p-3 text-center font-semibold rounded-lg ${exportMessage.includes('نجاح') ? 'bg-green-100 text-green-700' : exportMessage.includes('فشل') ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                     {exportMessage}
                 </div>
             )}
             
-            {/* جدول الملخص الإحصائي */}
+            {/* ========================================================== */}
+            {/* 1. جدول الملخص الإحصائي (جديد) */}
+            {/* ========================================================== */}
             <div id="summary-table-container">
                 <div className="p-6 bg-white rounded-xl shadow-lg">
                     <h3 className="text-xl font-bold mb-4 text-gray-700">ملخص الأداء الإجمالي</h3>
@@ -545,8 +724,11 @@ ${closedTradesDetails.map(trade =>
                 </div>
             </div>
 
-            {/* جدول السجل التفصيلي */}
+            {/* ========================================================== */}
+            {/* 2. جدول السجل التفصيلي (نتائج الصفقات الأسبوعية) */}
+            {/* ========================================================== */}
             <div id="detailed-table-container">
+
                 <div className="p-6 bg-white rounded-xl shadow-lg mt-8">
                     <h3 className="text-xl font-bold mb-4 text-indigo-700">سجل نتائج الصفقات التفصيلي</h3>
                     <div className="overflow-x-auto">
@@ -559,7 +741,7 @@ ${closedTradesDetails.map(trade =>
                                     <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">سعر الخروج</th>
                                     <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">النقاط</th>
                                     <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">الربح بالدولار ($)</th>
-                                    <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase">حذف</th>
+                                    <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase delete-header">حذف</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200 text-sm">
@@ -579,7 +761,7 @@ ${closedTradesDetails.map(trade =>
                                         <td className="px-3 py-2 whitespace-nowrap font-bold" style={{ color: trade.dollarProfit > 0 ? '#10B981' : trade.dollarProfit < 0 ? '#EF4444' : '#4B5563' }}>
                                             {formatDollar(trade.dollarProfit)}
                                         </td>
-                                        <td className="px-3 py-2 whitespace-nowrap">
+                                        <td className="px-3 py-2 whitespace-nowrap delete-cell">
                                             <button
                                                 onClick={() => handleConfirmDelete(trade)}
                                                 className="p-1 text-gray-400 hover:text-red-500 transition"
@@ -597,28 +779,17 @@ ${closedTradesDetails.map(trade =>
                                 )}
                             </tbody>
                             
-                            {closedTradesDetails.length > 0 && (
-                                <tfoot className="border-t-4 border-indigo-600 bg-indigo-50">
-                                    <tr>
-                                        <td colSpan="4" className="px-3 py-3 text-lg font-extrabold text-indigo-800 text-center">الإجمالي</td>
-                                        <td className="px-3 py-3 text-lg font-extrabold" style={{ color: totalPoints > 0 ? '#10B981' : totalPoints < 0 ? '#EF4444' : '#4B5563' }}>
-                                            {formatPoints(totalPoints)} نقطة
-                                        </td>
-                                        <td className="px-3 py-3 text-lg font-extrabold" style={{ color: totalDollarProfit > 0 ? '#10B981' : totalDollarProfit < 0 ? '#EF4444' : '#4B5563' }}>
-                                            {formatDollar(totalDollarProfit)}
-                                        </td>
-                                        <td className="px-3 py-3"></td>
-                                    </tr>
-                                </tfoot>
-                            )}
+                            {/* صف الإجماليات: تم ضغطه وإعادة كتابته لضمان سلامة الـ DOM */}
+                            {closedTradesDetails.length > 0 ? (<tfoot className="border-t-4 border-indigo-600 bg-indigo-50"><tr className="whitespace-nowrap"><td colSpan="4" className="px-3 py-3 text-lg font-extrabold text-indigo-800 text-center">الإجمالي</td><td className="px-3 py-3 text-lg font-extrabold" style={{ color: totalPoints > 0 ? '#10B981' : totalPoints < 0 ? '#EF4444' : '#4B5563' }}>{formatPoints(totalPoints)} نقطة</td><td className="px-3 py-3 text-lg font-extrabold" style={{ color: totalDollarProfit > 0 ? '#10B981' : totalDollarProfit < 0 ? '#EF4444' : '#4B5563' }}>{formatDollar(totalDollarProfit)}</td><td className="px-3 py-3 delete-cell"></td></tr></tfoot>) : null}
                         </table>
                     </div>
                 </div>
             </div>
-            
-            <ConfirmModal
+             
+            /* نافذة تأكيد الحذف */
+            <ConfirmModal 
                 isOpen={!!tradeToDelete}
-                message={`هل أنت متأكد من حذف الصفقة ${tradeToDelete?.symbol} (${tradeToDelete?.type})؟`}
+                message={`هل أنت متأكد من حذف الصفقة #${tradeToDelete?.id?.substring(0, 4)} لـ ${tradeToDelete?.symbol}؟ لا يمكن التراجع عن هذا الإجراء.`}
                 onConfirm={handleDeleteTrade}
                 onCancel={() => setTradeToDelete(null)}
             />
@@ -626,165 +797,136 @@ ${closedTradesDetails.map(trade =>
     );
 };
 
-// --- المكون الرئيسي ---
-function App() {
+
+/**
+ * المكون الرئيسي للتطبيق
+ */
+const App = () => {
+    // تم حذف Firebase بالكامل وتم الاعتماد على حالة React المحلية
     const [trades, setTrades] = useState([]);
-    const [activeTab, setActiveTab] = useState('add');
+    const [activeTab, setActiveTab] = useState('newTrade'); 
 
-    const addTrade = useCallback((newTrade) => {
-        setTrades(prev => [...prev, newTrade]);
+    // منطق تحديث الصفقات في الذاكرة
+    const handleAddTrade = useCallback((newTrade) => {
+        setTrades(prevTrades => [newTrade, ...prevTrades]);
     }, []);
 
-    const updateTrade = useCallback((updatedTrade) => {
-        setTrades(prev => prev.map(trade => 
-            trade.id === updatedTrade.id ? updatedTrade : trade
-        ));
+    const handleUpdateTrade = useCallback((updatedTrade) => {
+        setTrades(prevTrades => 
+            prevTrades.map(t => t.id === updatedTrade.id ? updatedTrade : t)
+        );
     }, []);
 
-    const deleteTrade = useCallback((tradeId) => {
-        setTrades(prev => prev.filter(trade => trade.id !== tradeId));
+    const handleDeleteTrade = useCallback((tradeId) => {
+        setTrades(prevTrades => prevTrades.filter(t => t.id !== tradeId));
     }, []);
 
-    const openTrades = useMemo(() => 
-        trades.filter(trade => trade.status === 'OPEN'), [trades]
-    );
 
-    const closedTrades = useMemo(() => 
-        trades.filter(trade => trade.status === 'CLOSED'), [trades]
-    );
-
-    const { totalPoints, totalDollarProfit, totalWins, totalLosses } = useMemo(() => {
-        const totalPoints = closedTrades.reduce((sum, trade) => sum + trade.points, 0);
-        const totalDollarProfit = closedTrades.reduce((sum, trade) => sum + trade.dollarProfit, 0);
-        const totalWins = closedTrades.filter(trade => trade.points > 0).length;
-        const totalLosses = closedTrades.filter(trade => trade.points <= 0).length;
+    // 3. حساب الإحصائيات الرئيسية
+    const { totalPoints, totalDollarProfit, closedTradesCount, openTrades, winRate } = useMemo(() => {
+        const closed = trades.filter(t => t.status === 'CLOSED');
+        const open = trades.filter(t => t.status === 'OPEN');
         
-        return { totalPoints, totalDollarProfit, totalWins, totalLosses };
-    }, [closedTrades]);
+        const totalP = closed.reduce((sum, t) => sum + (t.points || 0), 0);
+        const totalDP = closed.reduce((sum, t) => sum + (t.dollarProfit || 0), 0); 
+        const totalW = closed.filter(t => (t.points || 0) > 0).length;
+        const totalC = closed.length;
+        
+        const winR = totalC > 0 ? (totalW / totalC) * 100 : 0;
+        
+        return {
+            totalPoints: totalP,
+            totalDollarProfit: totalDP,
+            closedTradesCount: totalC,
+            openTrades: open,
+            winRate: winR,
+        };
+    }, [trades]);
+
+    // تنسيق قيمة النقاط للعرض
+    const formatPointsDisplay = (points) => {
+        const fixed = points.toFixed(2);
+        if (points > 0) return `+${fixed}`;
+        if (points < 0) return fixed;
+        return '0.00';
+    };
+
+    const pointsColor = totalPoints > 0 ? 'bg-emerald-600 text-white' : totalPoints < 0 ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-800';
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50" style={{ direction: 'rtl' }}>
-            {/* Header */}
-            <header className="bg-white shadow-lg border-b-4 border-indigo-600">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4 space-x-reverse">
-                            <img 
-                                src={`data:image/jpeg;base64,${HEADER_LOGO_BASE64}`} 
-                                alt="Logo" 
-                                className="h-12 w-12 rounded-lg shadow-md"
-                            />
-                            <div>
-                                <h1 className="text-3xl font-extrabold text-gray-900">EXTRA TRADE</h1>
-                                <p className="text-sm text-gray-600 font-medium">نظام إدارة الصفقات التجارية</p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-sm text-gray-500">البيانات محلية - لن تحفظ عند التحديث</p>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Stats Cards */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-cairo" style={{ fontFamily: 'Cairo, sans-serif', direction: 'rtl' }}>
+            
+            <style>
+                {`
+                @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap');
+                body {
+                    font-family: 'Cairo', sans-serif;
+                }
+                .text-right { text-align: right; }
+                .text-left { text-align: left; }
+                `}
+            </style>
+            <div className="max-w-4xl mx-auto">
+                <h1 className="text-3xl font-extrabold text-indigo-800 mb-6 border-b pb-2">
+                    حاسبة نتائج الصفقات
+                </h1>
+                
+                {/* 4. لوحة الإحصائيات العامة (Dashboard) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     <StatCard 
-                        title="الصفقات المفتوحة" 
-                        value={openTrades.length} 
-                        colorClass="bg-gradient-to-r from-blue-500 to-blue-600 text-white" 
+                        title="صافي النقاط الإجمالي"
+                        value={`${formatPointsDisplay(totalPoints)} نقطة`}
+                        colorClass={pointsColor}
                     />
                     <StatCard 
-                        title="الصفقات المغلقة" 
-                        value={closedTrades.length} 
-                        colorClass="bg-gradient-to-r from-gray-500 to-gray-600 text-white" 
+                        title="إجمالي الصفقات المغلقة" 
+                        value={closedTradesCount} 
+                        colorClass="bg-indigo-600 text-white"
                     />
                     <StatCard 
-                        title="إجمالي النقاط" 
-                        value={totalPoints > 0 ? `+${totalPoints.toFixed(2)}` : totalPoints.toFixed(2)} 
-                        colorClass={`bg-gradient-to-r ${totalPoints >= 0 ? 'from-emerald-500 to-emerald-600' : 'from-red-500 to-red-600'} text-white`} 
+                        title="معدل الربح" 
+                        value={`${winRate.toFixed(1)}%`} 
+                        colorClass="bg-yellow-100 text-yellow-800"
                     />
-                    <StatCard 
-                        title="إجمالي الربح ($)" 
-                        value={totalDollarProfit > 0 ? `+$${totalDollarProfit.toFixed(2)}` : `$${totalDollarProfit.toFixed(2)}`} 
-                        colorClass={`bg-gradient-to-r ${totalDollarProfit >= 0 ? 'from-green-500 to-green-600' : 'from-rose-500 to-rose-600'} text-white`} 
+                     <StatCard 
+                        title="صافي الدولارات الإجمالي" 
+                        value={`$${totalDollarProfit.toFixed(2)}`} 
+                        colorClass="bg-blue-100 text-blue-800"
                     />
                 </div>
 
-                {/* Navigation Tabs */}
-                <div className="bg-white rounded-xl shadow-lg mb-8">
-                    <div className="border-b border-gray-200">
-                        <nav className="flex space-x-8 space-x-reverse px-6">
-                            <button
-                                onClick={() => setActiveTab('add')}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                                    activeTab === 'add'
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                إضافة صفقة جديدة
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('open')}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                                    activeTab === 'open'
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                الصفقات المفتوحة ({openTrades.length})
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('reports')}
-                                className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                                    activeTab === 'reports'
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                التقارير والإحصائيات
-                            </button>
-                        </nav>
-                    </div>
-
-                    {/* Tab Content */}
-                    <div className="p-6">
-                        {activeTab === 'add' && (
-                            <NewTradeForm onAddTrade={addTrade} />
-                        )}
-                        
-                        {activeTab === 'open' && (
-                            <OpenTradesList 
-                                openTrades={openTrades}
-                                onUpdateTrade={updateTrade}
-                                onDeleteTrade={deleteTrade}
-                            />
-                        )}
-                        
-                        {activeTab === 'reports' && (
-                            <ReportsSection 
-                                trades={trades}
-                                onDeleteTrade={deleteTrade}
-                            />
-                        )}
-                    </div>
+                {/* 5. نظام التبويبات (Tabs) */}
+                <div className="mb-6 bg-white p-2 rounded-xl shadow-md flex space-x-2 space-x-reverse">
+                    <TabButton title="السجل والإجماليات" id="dashboard" activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton title="إضافة صفقة (لصق)" id="newTrade" activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <TabButton title="إغلاق صفقة" id="openTrades" activeTab={activeTab} setActiveTab={setActiveTab} />
                 </div>
+
+                {/* 6. محتوى التبويبات */}
+                <div className="mt-6">
+                    {activeTab === 'dashboard' && <WeeklyReport trades={trades} onDeleteTrade={handleDeleteTrade} />}
+                    {activeTab === 'newTrade' && <NewTradeForm onAddTrade={handleAddTrade} />}
+                    {activeTab === 'openTrades' && <OpenTradesList openTrades={openTrades} onUpdateTrade={handleUpdateTrade} onDeleteTrade={handleDeleteTrade} />}
+                </div>
+
+                /* تمت إزالة ملاحظة معرف المستخدم */
             </div>
-
-            {/* Footer */}
-            <footer className="bg-gray-800 text-white py-8 mt-16">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                    <p className="text-sm">
-                        © 2024 EXTRA TRADE. جميع الحقوق محفوظة.
-                    </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                        نظام إدارة الصفقات التجارية - البيانات محفوظة محلياً فقط
-                    </p>
-                </div>
-            </footer>
         </div>
     );
-}
+};
+
+// مكون زر التبويب
+const TabButton = ({ title, id, activeTab, setActiveTab }) => (
+    <button
+        onClick={() => setActiveTab(id)}
+        className={`flex-1 py-2 px-4 text-sm md:text-base font-semibold rounded-lg transition-all duration-200 ${
+            activeTab === id
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+        }`}
+    >
+        {title}
+    </button>
+);
 
 export default App;
