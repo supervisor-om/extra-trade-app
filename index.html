@@ -1,13 +1,643 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>EXTRA TRADE - إدارة الصفقات التجارية</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+import React, { useState, useMemo, useEffect, createContext, useContext, useCallback, useRef } from 'react';
+import { 
+  Moon, Sun, Plus, Heart, X, Info, CheckCircle, Search, 
+  User as UserIcon, DollarSign, Clock, ChevronRight, Languages, 
+  HandCoins, Bug, Flag, Globe, Share2, Filter, ArrowUpRight,
+  Shield, TrendingUp, Users, Star, AlertCircle, Award, Zap,
+  Copy, ExternalLink, ChevronDown, Lock, Eye, Sparkles,
+  HeartHandshake, ShieldCheck, ZapIcon, MessageSquareHeart,
+  Settings, BarChart3, Trash2, Check, Megaphone, Fingerprint,
+  Activity, BellRing, History, Quote, Send, Camera, Upload, Image as ImageIcon
+} from 'lucide-react';
+
+// --- تهيئة Firebase ---
+import { initializeApp } from "firebase/app";
+import { 
+  getFirestore, collection, addDoc, onSnapshot, doc, 
+  updateDoc, increment, query, deleteDoc, getDoc 
+} from "firebase/firestore";
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "firebase/auth";
+
+// تكوين افتراضي في حال فشل استلام الإعدادات من البيئة
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+  apiKey: "AIzaSyC7RmJuO7_sYa4wcErz4XNyguYIygY_ts8",
+  authDomain: "i-hope-1-2-3-4-5-6-7.firebaseapp.com",
+  projectId: "i-hope-1-2-3-4-5-6-7",
+  storageBucket: "i-hope-1-2-3-4-5-6-7.firebasestorage.app",
+  messagingSenderId: "389629834219",
+  appId: "1:389629834219:web:2a359c90c11dc26866dfae"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// --- مساعدات برمجية ---
+const generateShortId = (existingWishes) => {
+  let newId;
+  const ids = (existingWishes || []).map(w => w.shortId);
+  do {
+    newId = Math.floor(10000 + Math.random() * 90000).toString();
+  } while (ids.includes(newId));
+  return newId;
+};
+
+const AppContext = createContext();
+
+// ============================
+// مزود الحالة (State Provider)
+// ============================
+export const AppProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [lang, setLang] = useState('ar');
+  const [darkMode, setDarkMode] = useState(false);
+  const [wishes, setWishes] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const [isReady, setIsReady] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const t = (k) => {
+    const translations = {
+      ar: {
+        site_name: "i-hope",
+        add_btn: "أضف أمنيتك",
+        donate_btn: "تبرع الآن",
+        urgent: "حالة عاجلة",
+        verified: "موثقة",
+        unverified: "قيد المراجعة",
+        report_btn: "بلاغ",
+        search_hint: "ابحث بالاسم أو الرمز (12345)...",
+        donate_error: "المبلغ يتجاوز المطلوب!",
+        solve_msg: "تم حل مشكلتك بنجاح!",
+        upload_img: "إضافة صورة للأمنية",
+        change_img: "تغيير الصورة"
+      },
+      en: {
+        site_name: "i-hope",
+        add_btn: "Add Wish",
+        donate_btn: "Donate Now",
+        urgent: "Urgent",
+        verified: "Verified",
+        unverified: "Pending",
+        report_btn: "Report",
+        search_hint: "Search by name or ID (12345)...",
+        donate_error: "Exceeds target!",
+        solve_msg: "Issue solved successfully!",
+        upload_img: "Add wish photo",
+        change_img: "Change Photo"
+      }
+    };
+    return translations[lang][k] || k;
+  };
+
+  const showToast = useCallback((msg, type = 'success') => {
+    const id = Date.now();
+    setToasts(p => [...p, { id, msg, type }]);
+    setTimeout(() => setToasts(p => p.filter(x => x.id !== id)), 4000);
+  }, []);
+
+  // تهيئة الدخول
+  useEffect(() => {
+    const init = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) { console.error("Auth Error", err); }
+      setIsReady(true);
+    };
+    init();
+    onAuthStateChanged(auth, setUser);
+  }, []);
+
+  // جلب البيانات الحية
+  useEffect(() => {
+    if (!user) return;
+    const unsubWishes = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'wishes'), (snap) => {
+      setWishes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    const unsubReports = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'reports'), (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setReports(data);
+      data.forEach(r => {
+        if (r.reporterUid === user.uid && r.status === 'resolved' && !r.userNotified) {
+          showToast(t('solve_msg'), 'success');
+          updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reports', r.id), { userNotified: true });
+        }
+      });
+    });
+    return () => { unsubWishes(); unsubReports(); };
+  }, [user, lang, showToast]);
+
+  return (
+    <AppContext.Provider value={{
+      user, lang, setLang, wishes, reports, toasts, isAdmin, setIsAdmin, isReady, darkMode, setDarkMode, showToast, t
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+// ============================
+// المكونات البرمجية (Components)
+// ============================
+
+const Toast = () => {
+  const { toasts } = useContext(AppContext);
+  return (
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[1000] flex flex-col gap-2 w-full max-w-xs px-4">
+      {toasts.map(t => (
+        <div key={t.id} className={`p-4 rounded-2xl shadow-2xl flex items-center gap-3 border animate-in slide-in-from-top-4 ${t.type === 'error' ? 'bg-rose-600' : 'bg-slate-900'} text-white`}>
+          {t.type === 'error' ? <AlertCircle size={18}/> : <CheckCircle size={18} className="text-emerald-400"/>}
+          <span className="font-bold text-xs leading-tight">{t.msg}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const WishCard = ({ wish }) => {
+  const { lang, t, showToast } = useContext(AppContext);
+  const [isDonating, setIsDonating] = useState(false);
+  const [amt, setAmt] = useState("");
+
+  const progress = Math.min(((wish.raised || 0) / (wish.target || 1)) * 100, 100);
+  const isComplete = progress >= 100;
+  const remaining = Math.max(0, wish.target - (wish.raised || 0)).toFixed(2);
+
+  const handleDonate = async () => {
+    const val = parseFloat(amt);
+    if (!val || val <= 0) return;
+    if (val > parseFloat(remaining)) {
+      showToast(t('donate_error'), 'error');
+      return;
+    }
+    const wishRef = doc(db, 'artifacts', appId, 'public', 'data', 'wishes', wish.id);
+    await updateDoc(wishRef, { raised: increment(val), donorCount: increment(1) });
+    showToast(lang === 'ar' ? "شكراً لك!" : "Thank you!", "success");
+    setIsDonating(false); setAmt("");
+  };
+
+  return (
+    <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] overflow-hidden border transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl flex flex-col ${wish.isUrgent ? 'border-rose-500 ring-4 ring-rose-500/10' : 'border-slate-100 dark:border-white/5'}`}>
+      
+      {/* عرض صورة الأمنية إذا وجدت */}
+      {wish.imageUrl ? (
+        <div className="h-48 w-full relative overflow-hidden">
+          <img src={wish.imageUrl} alt={wish.title} className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+        </div>
+      ) : (
+        <div className="h-48 w-full bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-200">
+          <ImageIcon size={48} />
+        </div>
+      )}
+
+      <div className="p-8 flex flex-col flex-grow">
+        <div className="flex justify-between items-start mb-6">
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase ${wish.verified ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-400'}`}>
+            {wish.verified ? <ShieldCheck size={14}/> : <Shield size={14}/>}
+            {wish.verified ? t('verified') : t('unverified')}
+          </div>
+          <div className="flex items-center gap-1.5 opacity-20">
+             <Fingerprint size={12}/>
+             <span className="text-[10px] font-black">{wish.shortId}</span>
+          </div>
+        </div>
+
+        <h3 className="text-xl font-black mb-2 leading-tight dark:text-white line-clamp-1">{wish.title}</h3>
+        <p className="text-sm opacity-50 font-medium mb-8 line-clamp-3 dark:text-slate-300 flex-grow">{wish.description}</p>
+
+        <div className="space-y-4 mb-8">
+          <div className="flex justify-between items-end">
+            <div>
+              <span className="text-2xl font-black text-indigo-600 tracking-tighter">${(wish.raised || 0).toLocaleString()}</span>
+              <span className="text-[10px] opacity-30 font-bold block">raised of ${wish.target.toLocaleString()}</span>
+            </div>
+            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-1 rounded-lg">{Math.round(progress)}%</span>
+          </div>
+          <div className="w-full h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+            <div className={`h-full transition-all duration-1000 ${isComplete ? 'bg-emerald-500' : 'bg-indigo-600'}`} style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+
+        {!isDonating ? (
+          <button 
+            onClick={() => setIsDonating(true)} 
+            disabled={isComplete}
+            className={`w-full py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${isComplete ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/20' : 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xl hover:-translate-y-1'}`}
+          >
+            {isComplete ? <Check size={18}/> : <Heart size={18} fill="currentColor"/>}
+            {isComplete ? "Funded" : t('donate_btn')}
+          </button>
+        ) : (
+          <div className="space-y-3 animate-in zoom-in-95">
+            <div className="relative">
+               <input type="number" value={amt} onChange={e => setAmt(e.target.value)} placeholder={t('donate_btn')} className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border-none outline-none font-black text-center dark:text-white" autoFocus />
+               <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] opacity-20 font-black">MAX: ${remaining}</div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleDonate} className="flex-grow bg-emerald-600 text-white rounded-2xl py-3.5 font-black text-xs shadow-lg"> تأكيد </button>
+              <button onClick={() => setIsDonating(false)} className="p-3.5 bg-slate-100 dark:bg-white/5 rounded-2xl text-slate-400 hover:text-rose-500 transition-all"><X size={18}/></button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================
+// لوحة الإدارة (Admin Panel)
+// ============================
+const AdminPanel = ({ onClose }) => {
+  const { wishes, reports, t, isAdmin, setIsAdmin } = useContext(AppContext);
+  const [tab, setTab] = useState('wishes');
+
+  const stats = useMemo(() => {
+    const totalRaised = wishes.reduce((s, w) => s + (w.raised || 0), 0);
+    const totalTarget = wishes.reduce((s, w) => s + w.target, 0);
+    return { totalRaised, totalTarget };
+  }, [wishes]);
+
+  return (
+    <div className="fixed inset-0 z-[500] bg-slate-100 dark:bg-[#02040a] flex flex-col md:flex-row animate-in fade-in duration-500 overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-full md:w-64 bg-white dark:bg-slate-900 p-8 border-r dark:border-white/5 flex flex-col gap-6">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black">i</div>
+          <span className="font-black text-lg">Admin Hub</span>
+        </div>
+        <div className="space-y-1">
+          <button onClick={() => setTab('wishes')} className={`w-full p-4 rounded-2xl text-left font-black text-xs flex items-center gap-3 ${tab === 'wishes' ? 'bg-indigo-600 text-white' : 'opacity-50 hover:bg-slate-50 dark:hover:bg-white/5'}`}> <Star size={16}/> الأماني </button>
+          <button onClick={() => setTab('reports')} className={`w-full p-4 rounded-2xl text-left font-black text-xs flex items-center gap-3 ${tab === 'reports' ? 'bg-rose-600 text-white' : 'opacity-50 hover:bg-slate-50 dark:hover:bg-white/5'}`}> <Megaphone size={16}/> البلاغات </button>
+          <button onClick={() => setTab('stats')} className={`w-full p-4 rounded-2xl text-left font-black text-xs flex items-center gap-3 ${tab === 'stats' ? 'bg-indigo-600 text-white' : 'opacity-50 hover:bg-slate-50 dark:hover:bg-white/5'}`}> <BarChart3 size={16}/> الإحصائيات </button>
+        </div>
+        <button onClick={() => setIsAdmin(false)} className="mt-auto p-4 bg-rose-50 text-rose-600 rounded-2xl font-black text-xs">خروج</button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-grow p-8 overflow-y-auto">
+        <div className="max-w-3xl mx-auto space-y-12">
+          {tab === 'wishes' && (
+            <div className="space-y-4">
+              <h2 className="text-3xl font-black tracking-tighter mb-8">إدارة الطلبات</h2>
+              {wishes.map(w => (
+                <div key={w.id} className="bg-white dark:bg-slate-900 p-6 rounded-3xl border dark:border-white/5 flex items-center justify-between">
+                   <div>
+                      <div className="flex items-center gap-2">
+                         <span className="text-[10px] font-black bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded uppercase">#{w.shortId}</span>
+                         <h4 className="font-black">{w.title}</h4>
+                      </div>
+                      <p className="text-[10px] opacity-40 font-bold">${w.raised} / ${w.target}</p>
+                   </div>
+                   <div className="flex gap-2">
+                      <button onClick={() => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'wishes', w.id), { verified: !w.verified })} className={`p-3 rounded-xl ${w.verified ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-400'}`}><ShieldCheck size={18}/></button>
+                      <button onClick={() => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'wishes', w.id), { isUrgent: !w.isUrgent })} className={`p-3 rounded-xl ${w.isUrgent ? 'bg-rose-600 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-400'}`}><Zap size={18}/></button>
+                      <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'wishes', w.id))} className="p-3 bg-rose-50 text-rose-600 rounded-xl"><Trash2 size={18}/></button>
+                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {tab === 'reports' && (
+            <div className="space-y-4">
+               <h2 className="text-3xl font-black tracking-tighter mb-8">البلاغات الواردة</h2>
+               {reports.map(r => (
+                 <div key={r.id} className={`bg-white dark:bg-slate-900 p-6 rounded-3xl border flex items-start justify-between ${r.status === 'resolved' ? 'opacity-30' : 'border-rose-100 shadow-xl shadow-rose-500/5'}`}>
+                    <div>
+                       <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded">{r.type === 'wish' ? `ID: ${r.wishShortId}` : 'Platform'}</span>
+                          <span className="text-[10px] opacity-30">{new Date(r.timestamp).toLocaleString()}</span>
+                       </div>
+                       <p className="text-sm font-medium">{r.details}</p>
+                    </div>
+                    {r.status === 'pending' && (
+                      <button onClick={() => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reports', r.id), { status: 'resolved', userNotified: false })} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-black text-[10px]">حل المشكلة</button>
+                    )}
+                 </div>
+               ))}
+            </div>
+          )}
+
+          {tab === 'stats' && (
+            <div className="space-y-8">
+               <h2 className="text-3xl font-black tracking-tighter mb-8">إحصائيات المنصة</h2>
+               <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border dark:border-white/5 shadow-xl">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="font-black text-lg">تحليل التبرعات</h3>
+                    <div className="flex gap-4">
+                       <div className="flex items-center gap-2 text-[10px] font-bold opacity-40"><div className="w-3 h-3 bg-indigo-600 rounded-full"/> المجموعة</div>
+                       <div className="flex items-center gap-2 text-[10px] font-bold opacity-40"><div className="w-3 h-3 bg-slate-200 dark:bg-white/10 rounded-full"/> المستهدفة</div>
+                    </div>
+                  </div>
+                  <div className="flex items-end gap-4 h-48 px-4">
+                     {wishes.slice(0, 5).map((w, i) => {
+                       const h1 = (w.raised / stats.totalTarget) * 100 + 10;
+                       const h2 = (w.target / stats.totalTarget) * 100 + 20;
+                       return (
+                         <div key={i} className="flex-grow flex flex-col items-center gap-2">
+                            <div className="w-full flex items-end justify-center gap-1 h-full">
+                               <div className="w-3 bg-slate-100 dark:bg-white/5 rounded-t-lg transition-all" style={{ height: `${h2}%` }} />
+                               <div className="w-3 bg-indigo-600 rounded-t-lg transition-all" style={{ height: `${h1}%` }} />
+                            </div>
+                            <span className="text-[8px] font-black opacity-20">#{w.shortId}</span>
+                         </div>
+                       );
+                     })}
+                  </div>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="p-8 bg-indigo-600 text-white rounded-[2.5rem] shadow-xl">
+                     <div className="text-3xl font-black tracking-tighter">${stats.totalRaised.toLocaleString()}</div>
+                     <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">إجمالي المجموع</p>
+                  </div>
+                  <div className="p-8 bg-white dark:bg-slate-900 rounded-[2.5rem] border dark:border-white/5 shadow-xl">
+                     <div className="text-3xl font-black tracking-tighter dark:text-white">{wishes.length}</div>
+                     <p className="text-[10px] font-black opacity-40 uppercase tracking-widest">أمنية نشطة</p>
+                  </div>
+               </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================
+// الصفحة الرئيسية (Main UI)
+// ============================
+const AppUI = () => {
+  const { lang, setLang, darkMode, setDarkMode, wishes, isAdmin, setIsAdmin, isReady, showToast, user, t } = useContext(AppContext);
+  const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  const [pin, setPin] = useState("");
+
+  const [reportType, setReportType] = useState("general");
+  const [reportCode, setReportCode] = useState("");
+  const [reportText, setReportText] = useState("");
+
+  // حالات خاصة برفع الصورة
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const filtered = wishes.filter(w => {
+    const s = search.toLowerCase();
+    return (w.shortId && w.shortId.includes(s)) || (w.title && w.title.toLowerCase().includes(s));
+  });
+
+  useEffect(() => {
+    if (search === 'mr lol 55 2010') {
+      setShowPin(true);
+      setSearch("");
+    }
+  }, [search]);
+
+  if (!isReady) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#050608]">
+      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 800000) { // حد تقريبي لتجنب تجاوز ليميت فيرستور (800KB)
+        showToast(lang === 'ar' ? 'الصورة كبيرة جداً، يرجى اختيار صورة أصغر' : 'Image too large, please pick a smaller one', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handlePostWish = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const targetVal = parseFloat(fd.get('target'));
+    if (!targetVal || targetVal <= 0) return;
+
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'wishes'), {
+        title: fd.get('title'),
+        description: fd.get('desc'),
+        target: targetVal,
+        author: fd.get('author') || "Anonymous",
+        imageUrl: imagePreview, // حفظ الصورة كـ Data URL
+        shortId: generateShortId(wishes),
+        raised: 0,
+        donorCount: 0,
+        timestamp: Date.now(),
+        verified: false,
+        isUrgent: false,
+        creatorUid: user?.uid || "anon"
+      });
+      showToast(lang === 'ar' ? "تم النشر بنجاح!" : "Wish posted!", "success");
+      setShowAdd(false);
+      setImagePreview(null);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSendReport = async () => {
+    if (!reportText) return;
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reports'), {
+        type: reportType,
+        wishShortId: reportType === 'wish' ? reportCode : null,
+        details: reportText,
+        reporterUid: user?.uid || "anon",
+        status: 'pending',
+        userNotified: false,
+        timestamp: Date.now()
+      });
+      showToast(lang === 'ar' ? "تم إرسال البلاغ" : "Report sent", "success");
+      setShowReport(false);
+      setReportText(""); setReportCode("");
+    } catch (err) { console.error(err); }
+  };
+
+  return (
+    <div className={`${darkMode ? 'dark bg-[#050608] text-white' : 'bg-[#fcfdff] text-slate-900'} min-h-screen transition-all duration-500 font-sans`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      <Toast />
+
+      {isAdmin && <AdminPanel onClose={() => setIsAdmin(false)} />}
+
+      {/* Nav */}
+      <nav className="p-4 sticky top-0 bg-white/70 dark:bg-[#050608]/70 backdrop-blur-xl z-[100] border-b dark:border-white/5">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2 group cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl shadow-indigo-600/20 group-hover:rotate-12 transition-all">i</div>
+            <span className="text-2xl font-black tracking-tighter dark:text-white">hope</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowReport(true)} className="w-11 h-11 flex items-center justify-center bg-rose-50 dark:bg-rose-900/10 rounded-2xl text-rose-500 hover:bg-rose-500 hover:text-white transition-all active:scale-90" title={t('report_btn')}>
+               <Megaphone size={18}/>
+            </button>
+            <button onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="w-11 h-11 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-2xl text-indigo-600 font-black text-[10px] hover:bg-indigo-50 transition-all active:scale-90">
+              {lang === 'ar' ? 'EN' : 'AR'}
+            </button>
+            <button onClick={() => setDarkMode(!darkMode)} className="w-11 h-11 flex items-center justify-center bg-slate-100 dark:bg-white/5 rounded-2xl text-slate-400 hover:text-indigo-600 transition-all active:scale-90">
+              {darkMode ? <Sun size={18}/> : <Moon size={18}/>}
+            </button>
+            <button onClick={() => setShowAdd(true)} className="bg-indigo-600 text-white px-7 py-3 rounded-2xl font-black text-sm shadow-xl shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all">
+               <Plus size={18} className="sm:hidden"/><span className="hidden sm:inline">{t('add_btn')}</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Header */}
+      <header className="py-24 text-center px-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(79,70,229,0.1),transparent_70%)]" />
+        <div className="relative z-10 max-w-4xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] rounded-full mb-8 border border-indigo-100 dark:border-indigo-900/20">Humanitarian Gateway</div>
+          <h1 className="text-6xl md:text-8xl font-black mb-8 tracking-tighter leading-none animate-in fade-in slide-in-from-bottom-6 duration-700">
+             {lang === 'ar' ? 'حوّل الأمل إلى' : 'Turn Hope Into'} <span className="text-indigo-600">{lang === 'ar' ? 'واقع' : 'Reality'}</span>
+          </h1>
+          <p className="opacity-40 text-lg font-medium leading-relaxed mb-16 max-w-2xl mx-auto px-4">
+             {lang === 'ar' ? 'منصة إنسانية شفافة لربط القلوب المعطاءة بالأماني الصغيرة، نستخدم التكنولوجيا لنشر الخير.' : 'A transparent humanitarian platform connecting giving hearts with small wishes.'}
+          </p>
+          
+          <div className="max-w-2xl mx-auto p-2 bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border dark:border-white/5 flex items-center group">
+             <div className="w-14 flex items-center justify-center text-slate-300 group-focus-within:text-indigo-600 transition-all"><Search size={22}/></div>
+             <input 
+               type="text" 
+               placeholder={t('search_hint')} 
+               value={search} 
+               onChange={e => setSearch(e.target.value)} 
+               className="flex-grow py-5 bg-transparent outline-none font-bold text-lg dark:text-white placeholder:opacity-20"
+             />
+          </div>
+        </div>
+      </header>
+
+      {/* Grid */}
+      <main className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 pb-40">
+        {filtered.sort((a,b) => (b.isUrgent ? 1 : 0) - (a.isUrgent ? 1 : 0)).map(wish => <WishCard key={wish.id} wish={wish} />)}
+        {filtered.length === 0 && (
+          <div className="col-span-full py-40 text-center animate-in zoom-in-95">
+             <div className="w-20 h-20 bg-slate-100 dark:bg-white/5 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 text-4xl">🕊️</div>
+             <p className="opacity-10 font-black text-5xl tracking-tighter uppercase italic">{lang === 'ar' ? 'لا توجد أماني' : 'No Results'}</p>
+          </div>
+        )}
+      </main>
+
+      {/* Modals */}
+      {showAdd && (
+        <div className="fixed inset-0 z-[500] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-xl p-8 sm:p-12 rounded-[3.5rem] shadow-2xl border dark:border-white/10 animate-in zoom-in-95 duration-300 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+             <button onClick={() => { setShowAdd(false); setImagePreview(null); }} className="absolute top-8 left-8 p-3 text-slate-400 hover:text-rose-500 transition-all"><X size={24}/></button>
+             <h2 className="text-3xl font-black text-indigo-600 tracking-tighter mb-10">{t('add_btn')}</h2>
+             
+             <form onSubmit={handlePostWish} className="space-y-5">
+                
+                {/* حقل رفع الصورة */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest opacity-30 px-4">{t('upload_img')}</label>
+                  <div 
+                    onClick={() => fileInputRef.current.click()}
+                    className="w-full h-48 rounded-[2rem] bg-slate-50 dark:bg-white/5 border-2 border-dashed border-slate-200 dark:border-white/10 flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500 transition-all overflow-hidden group"
+                  >
+                    {imagePreview ? (
+                      <div className="w-full h-full relative">
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-white text-xs font-black">{t('change_img')}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center mb-2">
+                          <Camera size={24} />
+                        </div>
+                        <span className="text-xs font-bold opacity-30">JPG, PNG (Max 800KB)</span>
+                      </>
+                    )}
+                  </div>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleImageChange} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+                </div>
+
+                <input name="author" placeholder={lang === 'ar' ? 'اسمك الكريم' : 'Your Name'} className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border-none outline-none font-bold dark:text-white text-lg" />
+                <input name="title" required placeholder={lang === 'ar' ? 'عنوان الأمنية' : 'Wish Title'} className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border-none outline-none font-bold dark:text-white text-lg" />
+                <div className="relative">
+                   <input name="target" type="number" required placeholder={lang === 'ar' ? 'المبلغ المطلوب' : 'Target Amount'} className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border-none outline-none font-bold dark:text-white text-lg" />
+                   <DollarSign className="absolute right-4 top-1/2 -translate-y-1/2 opacity-20" size={20}/>
+                </div>
+                <textarea name="desc" required rows="4" placeholder={lang === 'ar' ? 'قصة هذه الأمنية...' : 'Story...'} className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border-none outline-none font-medium dark:text-white resize-none text-lg" />
+                <button type="submit" className="w-full bg-indigo-600 text-white py-5 rounded-[2rem] font-black text-xl shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all"> {lang === 'ar' ? 'نشر الآن' : 'Post Now'} </button>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {showReport && (
+        <div className="fixed inset-0 z-[500] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-md p-10 rounded-[3.5rem] shadow-2xl animate-in zoom-in-95">
+              <h2 className="text-2xl font-black mb-6 flex items-center gap-3 text-rose-500"><Megaphone size={24}/> إرسال بلاغ</h2>
+              <div className="flex gap-2 mb-6">
+                 <button onClick={() => setReportType('general')} className={`flex-grow p-3 rounded-xl font-black text-[10px] transition-all ${reportType === 'general' ? 'bg-slate-900 text-white dark:bg-white dark:text-black' : 'bg-slate-100 dark:bg-white/5'}`}>مشكلة عامة</button>
+                 <button onClick={() => setReportType('wish')} className={`flex-grow p-3 rounded-xl font-black text-[10px] transition-all ${reportType === 'wish' ? 'bg-slate-900 text-white dark:bg-white dark:text-black' : 'bg-slate-100 dark:bg-white/5'}`}>بلاغ عن أمنية</button>
+              </div>
+              {reportType === 'wish' && (
+                <div className="space-y-2 mb-4 animate-in slide-in-from-top-2">
+                   <label className="text-[10px] font-black opacity-30 uppercase tracking-widest px-4">رمز الأمنية (12345)</label>
+                   <input value={reportCode} onChange={e => setReportCode(e.target.value)} maxLength={5} placeholder="•••••" className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border-none outline-none font-black text-center text-xl dark:text-white" />
+                </div>
+              )}
+              <textarea value={reportText} onChange={e => setReportText(e.target.value)} rows="4" placeholder="اكتب التفاصيل..." className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border-none outline-none font-medium mb-8 dark:text-white resize-none" />
+              <div className="flex gap-3">
+                 <button onClick={handleSendReport} className="flex-grow bg-rose-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl"> إرسال البلاغ </button>
+                 <button onClick={() => setShowReport(false)} className="px-6 bg-slate-100 dark:bg-white/5 rounded-2xl font-black text-sm dark:text-white">إلغاء</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {showPin && (
+        <div className="fixed inset-0 z-[600] bg-slate-950/98 backdrop-blur-3xl flex items-center justify-center p-4">
+           <div className="bg-white dark:bg-slate-900 w-full max-w-xs p-10 rounded-[3rem] text-center shadow-2xl animate-in zoom-in-95">
+              <Lock size={32} className="mx-auto mb-6 text-indigo-600" />
+              <h3 className="text-xl font-black mb-10 tracking-tighter">Admin Access</h3>
+              <input type="password" value={pin} onChange={e => setPin(e.target.value)} maxLength={4} placeholder="••••" className="w-full bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border-none outline-none font-black text-5xl text-center mb-10 dark:text-white tracking-[0.2em]" autoFocus />
+              <div className="flex gap-2">
+                 <button onClick={() => { if(pin === '1234') { setIsAdmin(true); setShowPin(false); setPin(""); } else { setPin(""); showToast("PIN Error", "error"); } }} className="flex-grow bg-indigo-600 text-white py-5 rounded-3xl font-black text-lg">ACCESS</button>
+                 <button onClick={() => { setShowPin(false); setPin(""); }} className="px-6 bg-slate-100 dark:bg-white/5 rounded-2xl text-slate-400">X</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      <footer className="py-24 text-center border-t dark:border-white/5 mx-6">
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] opacity-10 italic">i-hope platform • secure humanitarian protocol v5.0</p>
+      </footer>
+
+      {/* Styles for custom scrollbar */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(79, 70, 229, 0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(79, 70, 229, 0.3); }
+      `}} />
+    </div>
+  );
+};
+
+const App = () => (<AppProvider><AppUI /></AppProvider>);
+export default App;
